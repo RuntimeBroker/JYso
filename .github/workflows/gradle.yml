@@ -15,7 +15,10 @@ on:
 
 jobs:
   build:
+
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
     - uses: actions/checkout@v4
@@ -31,23 +34,16 @@ jobs:
       uses: gradle/actions/setup-gradle@af1da67850ed9a4cedd57bfd976089dd991e2582 # v4.0.0
       with:
         gradle-version: '8.7'
+        
     - name: Build with Gradle Wrapper
-      run: |
-        ./gradlew shadowJar
-    - name: envInfo
-      run: |
-        ls -la
-        cd build
-        ls -la
-        cd libs
-        ls -la
-    # NOTE: The Gradle Wrapper is the default and recommended way to run Gradle (https://docs.gradle.org/current/userguide/gradle_wrapper.html).
-    # If your project does not have the Gradle Wrapper configured, you can use the following configuration to run Gradle with a specified version.
-    #
-    # - name: Setup Gradle
-    #   uses: gradle/actions/setup-gradle@af1da67850ed9a4cedd57bfd976089dd991e2582 # v4.0.0
-    #   with:
-    #     gradle-version: '8.9'
-    #
-    # - name: Build with Gradle 8.9
-    #   run: gradle build
+      run: ./gradlew shadowJar
+      
+    - name: Upload binaries to release
+      uses: svenstaro/upload-release-action@v2
+      with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: build/libs/JYso*
+          tag: ${{ github.ref }}
+          overwrite: true
+          file_glob: true
+          draft: false #编译完成后 会自动发布到release
